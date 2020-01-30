@@ -1,0 +1,22 @@
+.root {
+    -fx-font-family: "Roboto", System;
+}
+
+.button {
+    -fx-font-size: 16px;
+}
+
+#addPromptGrid .label {
+
+    -fx-font-weight: bold;
+}
+
+#addPromptGrid {
+    -fx-background-color: rgba(128, 128, 128, 0.1);
+    -fx-background-radius: 10;
+    -fx-padding: 15 15 15 15;
+}
+
+#titleLabel {
+    -fx-font-size: 20px;
+}
