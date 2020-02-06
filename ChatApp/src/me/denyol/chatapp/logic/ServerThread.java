@@ -1,50 +1,77 @@
 package me.denyol.chatapp.logic;
 
-import javafx.application.Platform;
+import me.denyol.chatapp.Main;
 import me.denyol.chatapp.controller.MainAppController;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.net.*;
+import java.util.AbstractQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ServerThread extends Thread {
 
 	private final MainAppController mainAppController;
-	private final int port;
 	private DatagramSocket socket;
+	private final Main main;
 
-	public ServerThread(MainAppController mainAppController, int port) throws SocketException {
+	private volatile boolean isRunning = true;
+
+	private AbstractQueue<String> messageOutQueue;
+
+	public ServerThread(MainAppController mainAppController, Main main) throws SocketException {
 		super("ServerThread");
 		this.mainAppController = mainAppController;
-		this.port = port;
+		this.main = main;
 
-		socket = new DatagramSocket(port);
+		socket = new DatagramSocket(null);
+		socket.setReuseAddress(true);
+		socket.bind(new InetSocketAddress(main.getServerPort()));
+
+		socket.setBroadcast(true);
+
+		messageOutQueue = new ConcurrentLinkedQueue<>();
+	}
+
+	public AbstractQueue<String> getMessageOutQueue() {
+		return messageOutQueue;
+	}
+
+	public void stopRunning() {
+		this.isRunning = false;
 	}
 
 	@Override
 	public void run() {
 		super.run();
 
-		try {
-			byte[] buf = new byte[256];
+		while (isRunning) {
+			try {
+				InetAddress host = InetAddress.getByName("255.255.255.255");
 
-			InetAddress host = InetAddress.getByName("255.255.255.255");
+				Thread.sleep(500);
 
-			for (int i = 0; i < 10; i++) {
-				buf = ("Bean" + i).getBytes();
-				DatagramPacket packet = new DatagramPacket(buf, buf.length, host, port + 1);
-				socket.send(packet);
+				String toSend = this.messageOutQueue.poll();
+
+				if (toSend != null && !toSend.isEmpty()) {
+					MessageData metaData = new MessageData();
+
+					metaData.setMessageData(toSend);
+
+					byte[] buf = metaData.produceByteArray();
+
+					DatagramPacket packet = new DatagramPacket(buf, buf.length, host, this.main.getClientPort());
+					socket.send(packet);
+				}
+			} catch(IOException | InterruptedException e){
+				e.printStackTrace();
+				socket.disconnect();
+				socket.close();
 			}
 
-		} catch (UnknownHostException e) {
-			e.printStackTrace();
-		} catch (SocketException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
 		}
+
+		socket.disconnect();
+		socket.close();
 
 	}
 }

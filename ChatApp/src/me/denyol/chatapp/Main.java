@@ -14,11 +14,15 @@ import java.io.IOException;
 
 public class Main extends Application {
 
-    private Thread serverThread;
     private Stage stage;
     private MainAppController mainAppController;
-    private SignOn signOn;
-    private final int port = 25061;
+    private int port;
+    private ServerThread serverThread;
+    private ClientThread clientThread;
+    private String name = "Default";
+
+    public final static int METADATA_BYTE_LENGTH = 16;
+    public final static int DEFAULT_PORT = 25570;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -27,17 +31,10 @@ public class Main extends Application {
 
         stage.setTitle("P2P Chat Application");
 
-        this.startChatAppScene();
-
-        ServerThread serverThread = new ServerThread(mainAppController, port);
-        serverThread.setDaemon(true);
-        serverThread.start();
-        ClientThread clientThread = new ClientThread(mainAppController, port);
-        clientThread.setDaemon(true);
-        clientThread.start();
+        this.startSignOnScene();
     }
 
-    private void startChatAppScene() throws IOException {
+    public void startChatAppScene() throws IOException {
         FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("chat_app.fxml")
         );
@@ -47,24 +44,73 @@ public class Main extends Application {
         MainAppController controller = loader.getController();
         this.mainAppController = controller;
 
+        serverThread = new ServerThread(mainAppController, this);
+        serverThread.start();
+        clientThread = new ClientThread(mainAppController, this);
+        clientThread.start();
+
+        controller.init(this);
+
         stage.setScene(scene);
 
         this.stage.show();
     }
 
-    private void startSignOnScene() throws IOException {
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public int getServerPort() {
+        return port;
+    }
+
+    public int getClientPort() {
+        return port + 1;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public ServerThread getServerThread() {
+        return serverThread;
+    }
+
+    public ClientThread getClientThread() {
+        return clientThread;
+    }
+
+    public void startSignOnScene() throws IOException {
         FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("sign_on.fxml")
         );
 
+        this.serverThread = null;
+        this.clientThread = null;
+
         Scene scene = new Scene((Pane) loader.load());
 
         SignOn controller = loader.getController();
-        this.signOn = controller;
+        controller.init(this);
 
+        this.stage.setScene(scene);
         this.stage.show();
     }
 
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public void stop() throws Exception {
+        if (serverThread != null && this.clientThread != null) {
+            serverThread.getMessageOutQueue().offer(this.name + " is leaving the room! o/");
+            this.serverThread.stopRunning();
+            this.clientThread.stopRunning();
+        }
+
+        super.stop();
+    }
 
     public static void main(String[] args) {
         launch(args);

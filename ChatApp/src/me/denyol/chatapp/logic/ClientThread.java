@@ -1,50 +1,70 @@
 package me.denyol.chatapp.logic;
 
+import javafx.application.Platform;
+import me.denyol.chatapp.Main;
 import me.denyol.chatapp.controller.MainAppController;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.nio.charset.StandardCharsets;
 
 public class ClientThread extends Thread {
 
 	private final MainAppController mainAppController;
-	private final int port;
 	private DatagramSocket socket;
+	private final Main main;
 
-	public ClientThread(MainAppController mainAppController, int port) {
+	private volatile boolean isRunning = true;
+
+	public ClientThread(MainAppController mainAppController, Main main) throws SocketException {
 		super("ClientThread");
 		this.mainAppController = mainAppController;
-		this.port = port;
+		this.main = main;
+
+		socket = new DatagramSocket(null);
+		socket.setReuseAddress(true);
+		socket.bind(new InetSocketAddress(main.getClientPort()));
+	}
+
+	public void stopRunning() {
+		this.isRunning = false;
 	}
 
 	@Override
 	public void run() {
 		super.run();
 
-		try {
-			socket = new DatagramSocket(port + 1);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
-		DatagramPacket packet = new DatagramPacket(new byte[256], 250);
-
-		while (true) {
+		while (isRunning) {
 			try {
+				DatagramPacket packet = new DatagramPacket(new byte[1024], 1024);
+
 				socket.receive(packet);
 
-				System.out.println("Recieved: " + packet.getAddress());
+				System.out.println("Recieved from " + packet.getAddress() + ":" + packet.getPort());
 
-				byte[] fromServer = packet.getData();
+				new Thread() {
+					@Override
+					public void run() {
+						super.run();
+						MessageData messageData = new MessageData(packet.getData(), packet.getLength());
 
-				System.out.println(new String(fromServer, StandardCharsets.UTF_8));
+						Platform.runLater(new Runnable() {
+							@Override
+							public void run() {
+								mainAppController.addText(messageData.getMessage());
+							}
+						});
+					}
+				}.start();
 
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
+
+		socket.disconnect();
+		socket.close();
 	}
 }

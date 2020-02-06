@@ -2,17 +2,24 @@ package me.denyol.chatapp.controller;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.util.Callback;
+import me.denyol.chatapp.Main;
+
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class MainAppController {
 
 	@FXML private ListView<String> listView;
-	@FXML private Button sendButton;
 	@FXML private TextArea textArea;
+
+	private Main main;
 
 	@FXML
 	public void initialize() {
@@ -34,7 +41,6 @@ public class MainAppController {
 						} else {
 							setWrapText(true);
 
-							//prefWidthProperty().bind(getListView().widthProperty().subtract(2));
 							setPrefWidth(0);
 							setMaxWidth(Control.USE_PREF_SIZE);
 
@@ -44,21 +50,52 @@ public class MainAppController {
 				};
 			}
 		});
+	}
 
-		listView.setItems(FXCollections.observableArrayList("(6:07 PM) Daniel: Tgis is my measssashshshshhshshhsgeshshshs"));
-		listView.getItems().add("(6:07 PM) Rachel: Tgis is my measssashshshshhshshhsgeshshshs");
+	public void init(Main main) {
+		this.main = main;
+
+		this.main.getServerThread().getMessageOutQueue().offer(main.getName() + " joined the room!");
 	}
 
 	public ListView<String> getListView() {
 		return listView;
 	}
 
-	public TextArea getTextArea() {
-		return textArea;
-	}
-
 	public void addText(String text) {
 		this.getListView().getItems().add(text);
+	}
+
+	@FXML
+	private void onSendButtonAction(ActionEvent event) {
+		StringBuilder stringBuilder = new StringBuilder();
+
+		DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
+		LocalDateTime localDate = LocalDateTime.now();
+
+		stringBuilder.append("(");
+		stringBuilder.append(dtf.format(localDate));
+		stringBuilder.append(") ");
+
+		stringBuilder.append(main.getName());
+		stringBuilder.append(": ");
+		stringBuilder.append(this.textArea.getText());
+
+		boolean result = this.main.getServerThread().getMessageOutQueue().offer(stringBuilder.toString());
+
+		if(result = false)
+			listView.getItems().add("Could not add item!");
+		else {
+			this.textArea.setText("");
+		}
+	}
+
+	@FXML
+	public void handleLeaveButtonAction(ActionEvent actionEvent) throws IOException {
+		main.getServerThread().getMessageOutQueue().offer(main.getName() + " is leaving the room! o/");
+		this.main.getServerThread().stopRunning();
+		this.main.getClientThread().stopRunning();
+		this.main.startSignOnScene();
 	}
 }
 
